@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { X, Calendar } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function PctBadge({ pct }) {
+  const cls = pct >= 85 ? 'high' : pct >= 75 ? 'medium' : 'low';
+  return <span className={`att-pct ${cls}`}>{pct}%</span>;
+}
+
 export default function MonthlyClassView({ classItem, onClose }) {
   const [data, setData] = useState(null);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -9,16 +17,15 @@ export default function MonthlyClassView({ classItem, onClose }) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (classItem) {
-      fetchMonthlyData();
-    }
+    if (classItem) fetchMonthlyData();
   }, [classItem, year, month]);
 
   const fetchMonthlyData = async () => {
     setLoading(true);
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await axios.get(`${API_URL}/api/attendance/monthly?class_id=${classItem.id}&year=${year}&month=${month}`);
+      const res = await axios.get(
+        `${API_URL}/api/attendance/monthly?class_id=${classItem.id}&year=${year}&month=${month}`
+      );
       setData(res.data);
     } catch (err) {
       console.error(err);
@@ -30,88 +37,112 @@ export default function MonthlyClassView({ classItem, onClose }) {
 
   const daysArray = data ? Array.from({ length: data.days_in_month }, (_, i) => i + 1) : [];
 
+  // Class-wide average
+  const avgPct = data && data.students.length > 0
+    ? Math.round(data.students.reduce((sum, s) => sum + s.percentage, 0) / data.students.length)
+    : null;
+
   return (
-    <div className="modal-overlay" style={{
-      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
     }}>
-      <div className="modal-content glass-card" style={{ width: '95%', maxWidth: '1400px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+      <div className="glass-card" style={{ width: '97%', maxWidth: '1500px', maxHeight: '92vh', overflowY: 'auto', padding: '2rem' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>{classItem.name} - Monthly Monitor</h2>
-            <p style={{ color: 'var(--text-muted)' }}>Detailed attendance view for students</p>
+            <h2 style={{ fontSize: '1.4rem', marginBottom: '0.25rem' }}>
+              {classItem.name} — Monthly Attendance
+            </h2>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              {MONTH_NAMES[month - 1]} {year}
+              {data && <> &nbsp;·&nbsp; <strong style={{ color: '#e2e8f0' }}>{data.working_days}</strong> working days</>}
+              {avgPct !== null && <> &nbsp;·&nbsp; Class avg: <strong><PctBadge pct={avgPct}/></strong></>}
+            </p>
           </div>
-          <button onClick={onClose} className="btn-icon" style={{ background: 'rgba(255,255,255,0.1)', border: 'none', color: '#fff', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%' }}>
-            <X size={24} />
+          <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', color: '#fff', cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', display: 'flex' }}>
+            <X size={22}/>
           </button>
         </div>
 
+        {/* Month / Year selectors */}
         <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center' }}>
-          <Calendar size={20} color="#94a3b8" />
-          <select className="form-control" value={month} onChange={(e) => setMonth(parseInt(e.target.value))} style={{ width: '150px' }}>
-            <option value={1}>January</option>
-            <option value={2}>February</option>
-            <option value={3}>March</option>
-            <option value={4}>April</option>
-            <option value={5}>May</option>
-            <option value={6}>June</option>
-            <option value={7}>July</option>
-            <option value={8}>August</option>
-            <option value={9}>September</option>
-            <option value={10}>October</option>
-            <option value={11}>November</option>
-            <option value={12}>December</option>
+          <Calendar size={18} color="#94a3b8"/>
+          <select className="form-control" value={month} onChange={e => setMonth(+e.target.value)} style={{ width: '150px' }}>
+            {MONTH_NAMES.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
           </select>
-          <select className="form-control" value={year} onChange={(e) => setYear(parseInt(e.target.value))} style={{ width: '120px' }}>
-            <option value={new Date().getFullYear() - 1}>{new Date().getFullYear() - 1}</option>
-            <option value={new Date().getFullYear()}>{new Date().getFullYear()}</option>
-            <option value={new Date().getFullYear() + 1}>{new Date().getFullYear() + 1}</option>
+          <select className="form-control" value={year} onChange={e => setYear(+e.target.value)} style={{ width: '110px' }}>
+            {[year-1, year, year+1].map(y => <option key={y} value={y}>{y}</option>)}
           </select>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto', fontSize: '0.8rem' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span className="att-pct high" style={{ fontSize: '0.7rem' }}>≥85%</span> Good
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span className="att-pct medium" style={{ fontSize: '0.7rem' }}>75–84%</span> At Risk
+            </span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span className="att-pct low" style={{ fontSize: '0.7rem' }}>&lt;75%</span> Shortage
+            </span>
+          </div>
         </div>
 
+        {/* Table */}
         {loading ? (
-          <p style={{ textAlign: 'center', padding: '2rem' }}>Loading data...</p>
+          <div style={{ textAlign: 'center', padding: '3rem' }}>
+            <span className="spinner" style={{ width: '32px', height: '32px', borderWidth: '3px' }}/>
+            <p style={{ color: 'var(--text-muted)', marginTop: '1rem' }}>Loading attendance matrix...</p>
+          </div>
         ) : (
-          <div className="table-container" style={{ overflowX: 'auto', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-            <table className="attendance-matrix" style={{ minWidth: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-container" style={{ borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <table className="attendance-matrix" style={{ borderCollapse: 'collapse', minWidth: '100%' }}>
               <thead>
-                <tr style={{ background: 'rgba(0,0,0,0.2)' }}>
-                  <th style={{ minWidth: '150px', position: 'sticky', left: 0, zIndex: 2, background: 'rgba(20,20,30,0.95)', padding: '1rem' }}>Student Name</th>
+                <tr style={{ background: 'rgba(0,0,0,0.25)' }}>
+                  <th style={{ minWidth: '90px', position: 'sticky', left: 0, zIndex: 2, background: 'rgba(15,15,25,0.98)', padding: '0.8rem 0.75rem' }}>Roll No.</th>
+                  <th style={{ minWidth: '160px', position: 'sticky', left: '90px', zIndex: 2, background: 'rgba(15,15,25,0.98)', padding: '0.8rem 1rem' }}>Name</th>
                   {daysArray.map(day => (
-                    <th key={day} style={{ width: '35px', textAlign: 'center', padding: '1rem 0.5rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>{day}</th>
+                    <th key={day} style={{ width: '32px', textAlign: 'center', padding: '0.8rem 0.1rem', borderLeft: '1px solid rgba(255,255,255,0.04)', fontSize: '0.75rem' }}>
+                      {day}
+                    </th>
                   ))}
-                  <th style={{ textAlign: 'center', padding: '1rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>Total %</th>
+                  <th style={{ textAlign: 'center', padding: '0.8rem', borderLeft: '1px solid rgba(255,255,255,0.06)', minWidth: '60px' }}>Days</th>
+                  <th style={{ textAlign: 'center', padding: '0.8rem', borderLeft: '1px solid rgba(255,255,255,0.06)', minWidth: '70px' }}>%</th>
                 </tr>
               </thead>
               <tbody>
-                {data && data.students.map((student, idx) => {
-                  let presentCount = 0;
-                  return (
-                    <tr key={student.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
-                      <td style={{ position: 'sticky', left: 0, zIndex: 1, background: idx % 2 === 0 ? 'rgba(30,30,40,0.95)' : 'rgba(35,35,45,0.95)', fontWeight: 500, padding: '1rem' }}>{student.name}</td>
-                      {daysArray.map(day => {
-                        const status = student.attendance[day];
-                        if (status === 'Present') presentCount++;
-                        return (
-                          <td key={day} style={{ textAlign: 'center', padding: '0.25rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
-                            {status === 'Present' ? (
-                              <span style={{ display: 'inline-block', width: '24px', height: '24px', lineHeight: '24px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontWeight: 'bold' }}>P</span>
-                            ) : (
-                              <span style={{ display: 'inline-block', width: '24px', height: '24px', lineHeight: '24px', borderRadius: '4px', color: '#ef4444', opacity: 0.5 }}>-</span>
-                            )}
-                          </td>
-                        );
-                      })}
-                      <td style={{ textAlign: 'center', fontWeight: 'bold', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
-                        {data.days_in_month > 0 ? Math.round((presentCount / data.days_in_month) * 100) : 0}%
-                      </td>
-                    </tr>
-                  )
-                })}
+                {data && data.students.map((student, idx) => (
+                  <tr key={student.id} style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)' }}>
+                    <td style={{ position: 'sticky', left: 0, zIndex: 1, background: idx % 2 === 0 ? 'rgba(20,20,30,0.98)' : 'rgba(25,25,38,0.98)', fontFamily: 'monospace', color: '#a5b4fc', fontSize: '0.82rem', padding: '0.6rem 0.75rem' }}>
+                      {student.roll_number || '—'}
+                    </td>
+                    <td style={{ position: 'sticky', left: '90px', zIndex: 1, background: idx % 2 === 0 ? 'rgba(20,20,30,0.98)' : 'rgba(25,25,38,0.98)', fontWeight: 500, padding: '0.6rem 1rem' }}>
+                      {student.name}
+                    </td>
+                    {daysArray.map(day => {
+                      const status = student.attendance[day];
+                      return (
+                        <td key={day} style={{ textAlign: 'center', padding: '0.25rem 0.05rem', borderLeft: '1px solid rgba(255,255,255,0.04)' }}>
+                          {status === 'Present'
+                            ? <span className="att-cell-present">P</span>
+                            : <span className="att-cell-absent">—</span>
+                          }
+                        </td>
+                      );
+                    })}
+                    <td style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)', color: '#10b981', fontWeight: 600 }}>
+                      {student.present_count}/{student.working_days}
+                    </td>
+                    <td style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.06)' }}>
+                      <PctBadge pct={student.percentage}/>
+                    </td>
+                  </tr>
+                ))}
                 {(!data || data.students.length === 0) && (
                   <tr>
-                    <td colSpan={daysArray.length + 2} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                    <td colSpan={daysArray.length + 4} style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                       No students found in this class.
                     </td>
                   </tr>
