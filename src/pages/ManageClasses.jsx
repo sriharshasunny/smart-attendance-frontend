@@ -31,14 +31,19 @@ export default function ManageClasses() {
     if (!form.name.trim()) return;
     setLoading(true);
     try {
-      await axios.post(`${API_URL}/api/classes`, form);
+      await axios.post(`${API_URL}/api/classes`, form, { timeout: 15000 });
       setForm({ name: '', department: '', section: '', year: '' });
       showToast('Class created successfully!', 'success');
       fetchClasses();
     } catch (err) {
-      showToast(err.response?.data?.error || 'Failed to create class', 'error');
+      if (err.code === 'ECONNABORTED') {
+        showToast('Request timed out. The backend might be starting up or unresponsive.', 'error');
+      } else {
+        showToast(err.response?.data?.error || 'Failed to create class', 'error');
+      }
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const deleteClass = async (id) => {
