@@ -10,6 +10,9 @@ export default function LiveAttendance() {
   const [message, setMessage] = useState('');
   const [markedUsers, setMarkedUsers] = useState([]);
 
+  const [classes, setClasses] = useState([]);
+  const [selectedClass, setSelectedClass] = useState('');
+
   // Setup auto-capture interval when scanning
   useEffect(() => {
     let interval;
@@ -19,7 +22,20 @@ export default function LiveAttendance() {
       }, 3000); // scan every 3 seconds
     }
     return () => clearInterval(interval);
-  }, [isScanning]);
+  }, [isScanning, selectedClass]);
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+        const res = await axios.get(`${API_URL}/api/classes`);
+        setClasses(res.data);
+      } catch (err) {
+        console.error("Failed to load classes", err);
+      }
+    };
+    fetchClasses();
+  }, []);
 
   const captureAndSend = useCallback(async () => {
     if (!webcamRef.current) return;
@@ -31,9 +47,12 @@ export default function LiveAttendance() {
     
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-      const res = await axios.post(`${API_URL}/api/attendance/mark`, {
-        image: imageSrc
-      });
+      const payload = { image: imageSrc };
+      if (selectedClass) {
+        payload.class_id = selectedClass;
+      }
+      
+      const res = await axios.post(`${API_URL}/api/attendance/mark`, payload);
       
       setScanStatus('success');
       setMessage(res.data.message);
@@ -56,7 +75,7 @@ export default function LiveAttendance() {
       setMessage(err.response?.data?.error || 'Failed to process image');
       setTimeout(() => setScanStatus(isScanning ? 'scanning' : 'idle'), 1500);
     }
-  }, [webcamRef, isScanning]);
+  }, [webcamRef, isScanning, selectedClass]);
 
   const toggleScanning = () => {
     setIsScanning(!isScanning);
@@ -75,6 +94,24 @@ export default function LiveAttendance() {
         
         {/* Camera Section */}
         <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          
+          <div style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            <label style={{ fontWeight: 500, minWidth: 'max-content' }}>Filter by Class (Optional):</label>
+            <select 
+              className="form-control" 
+              value={selectedClass} 
+              onChange={(e) => setSelectedClass(e.target.value)}
+              disabled={isScanning}
+            >
+              <option value="">All Classes (Scan entire database)</option>
+              {classes.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.department ? `- ${c.department}` : ''} {c.section ? `(${c.section})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="webcam-container">
             <Webcam
               audio={false}
