@@ -83,11 +83,45 @@ export default function LiveAttendance() {
     setMessage(!isScanning ? 'Scanning for faces...' : 'Scanner paused.');
   };
 
+  const [manualRoll, setManualRoll] = useState('');
+  const [manualStatus, setManualStatus] = useState(null);
+  
+  const handleManualMark = async (e) => {
+    e.preventDefault();
+    setManualStatus(null);
+    if (!manualRoll) return;
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${API_URL}/api/attendance/manual`, { 
+        roll_number: manualRoll,
+        class_id: selectedClass 
+      });
+      
+      setManualStatus({ type: 'success', message: res.data.message });
+      setManualRoll('');
+      
+      // Add to marked users list
+      const userName = res.data.user.name;
+      setMarkedUsers(prev => {
+        if (!prev.find(u => u.name === userName)) {
+          return [{name: userName, role: res.data.user.role, time: new Date().toLocaleTimeString()}, ...prev];
+        }
+        return prev;
+      });
+
+      setTimeout(() => setManualStatus(null), 3000);
+    } catch (err) {
+      setManualStatus({ type: 'error', message: err.response?.data?.error || 'Failed to mark attendance manually' });
+      setTimeout(() => setManualStatus(null), 3000);
+    }
+  };
+
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Live Attendance</h1>
-        <p className="page-subtitle">Automatic face recognition attendance</p>
+        <p className="page-subtitle">Automatic face recognition & manual check-in</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', gap: '2rem' }}>
@@ -139,36 +173,67 @@ export default function LiveAttendance() {
           </div>
         </div>
 
-        {/* Live Logs Section */}
-        <div className="glass-card" style={{ height: 'fit-content' }}>
-          <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-            <RefreshCw size={18} /> Live Check-ins
-          </h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '400px', overflowY: 'auto' }}>
-            {markedUsers.map((user, idx) => (
-              <div key={idx} style={{ 
-                padding: '1rem', 
-                background: 'rgba(255,255,255,0.03)', 
-                borderRadius: '10px',
-                borderLeft: '4px solid var(--success)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}>
-                <div>
-                  <h4 style={{ margin: 0, fontSize: '1rem' }}>{user.name}</h4>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</span>
-                </div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  {user.time}
-                </div>
+        {/* Right Column: Manual + Logs */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+          
+          {/* Manual Attendance Card */}
+          <div className="glass-card">
+            <h3 style={{ marginBottom: '1rem' }}>Manual Attendance</h3>
+            <form onSubmit={handleManualMark}>
+              <div className="form-group">
+                <label>Roll Number</label>
+                <input 
+                  type="text" 
+                  className="form-control"
+                  placeholder="Enter Roll Number"
+                  value={manualRoll}
+                  onChange={(e) => setManualRoll(e.target.value)}
+                  disabled={isScanning}
+                />
               </div>
-            ))}
-            {markedUsers.length === 0 && (
-              <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>
-                No recent check-ins.
-              </p>
-            )}
+              <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={isScanning || !manualRoll}>
+                Mark Present
+              </button>
+              {manualStatus && (
+                <p style={{ marginTop: '1rem', color: manualStatus.type === 'error' ? 'var(--danger)' : 'var(--success)', textAlign: 'center', fontSize: '0.9rem' }}>
+                  {manualStatus.message}
+                </p>
+              )}
+            </form>
+          </div>
+
+          {/* Live Logs Section */}
+          <div className="glass-card" style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+              <RefreshCw size={18} /> Live Check-ins
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }}>
+              {markedUsers.map((user, idx) => (
+                <div key={idx} style={{ 
+                  padding: '1rem', 
+                  background: 'rgba(255,255,255,0.03)', 
+                  borderRadius: '10px',
+                  borderLeft: '4px solid var(--success)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  animation: 'slideIn 0.3s ease'
+                }}>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: '1rem' }}>{user.name}</h4>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{user.role}</span>
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                    {user.time}
+                  </div>
+                </div>
+              ))}
+              {markedUsers.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '2rem' }}>
+                  No recent check-ins.
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
